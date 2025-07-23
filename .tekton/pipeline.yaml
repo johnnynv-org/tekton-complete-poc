@@ -1,0 +1,10 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: simple-pipeline
+spec:
+  tasks:
+    - name: run-python-script
+      taskRef:
+        name: run-python-script
+

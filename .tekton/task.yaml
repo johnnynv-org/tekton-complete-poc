@@ -1,0 +1,10 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: run-python-script
+spec:
+  steps:
+    - name: run-script
+      image: python:3.9
+      command: ["/bin/sh"]
+      args: ["-c", "python main.py"]
