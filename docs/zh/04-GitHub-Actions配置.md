@@ -1,12 +1,18 @@
-# 04 - GitHub Actions配置
+# 05 - GitHub Actions配置
 
-本文档详细说明GitHub Actions workflow的配置和自宿主runner的使用。
+本文档详细说明GitHub Actions workflow的简化配置，专注于触发Tekton而非执行具体业务逻辑。
 
-## 自宿主Runner信息
+## 设计理念
 
+### 职责分离
+- **GitHub Actions**: 负责接收webhook，简单的参数处理
+- **Runner**: 只负责HTTP请求转发，不执行业务逻辑
+- **Tekton**: 负责所有CI/CD业务逻辑的执行
+
+### 自宿主Runner信息
 - **Runner名称**: `swqa-gh-runner-poc`
-- **运行环境**: 能够访问Kubernetes集群的机器
-- **用途**: 接收GitHub webhook并触发Tekton Pipeline
+- **运行环境**: 能够访问Kubernetes集群内网的机器
+- **权限**: 最小化权限，只需要网络访问EventListener服务
 
 ## Workflow配置文件
 
@@ -40,7 +46,7 @@ jobs:
 - 能够访问Kubernetes集群
 - 安装了kubectl命令行工具
 
-## Workflow步骤详解
+## Workflow步骤详解（简化版）
 
 ### 1. 代码检出
 
@@ -49,234 +55,115 @@ jobs:
   uses: actions/checkout@v4
 ```
 
-使用GitHub官方action检出代码到runner环境。
+检出代码，主要用于获取仓库信息和构造HTTP请求。
 
-### 2. 验证kubectl访问
-
-```yaml
-- name: Verify kubectl access
-  run: |
-    echo "Checking kubectl access..."
-    kubectl version --client
-    kubectl config current-context
-    kubectl get nodes
-```
-
-**目的：**
-- 确认kubectl工具可用
-- 验证与Kubernetes集群的连接
-- 检查当前的kubectl context
-
-### 3. 应用Tekton配置
+### 2. 触发Tekton EventListener
 
 ```yaml
-- name: Apply Tekton Task
+- name: Trigger Tekton Pipeline
   run: |
-    echo "Applying Tekton Task..."
-    kubectl apply -f .tekton/task-pytest.yaml
+    # 获取EventListener内网地址
+    EVENTLISTENER_URL="http://el-github-listener.default.svc.cluster.local:8080"
     
-- name: Apply Tekton Pipeline
-  run: |
-    echo "Applying Tekton Pipeline..."
-    kubectl apply -f .tekton/pipeline.yaml
-```
-
-将项目中的Tekton Task和Pipeline定义应用到Kubernetes集群。
-
-### 4. 生成唯一的PipelineRun名称
-
-```yaml
-- name: Generate unique PipelineRun name
-  id: generate-name
-  run: |
-    TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-    PIPELINE_RUN_NAME="pytest-pipeline-run-${TIMESTAMP}"
-    echo "pipeline_run_name=${PIPELINE_RUN_NAME}" >> $GITHUB_OUTPUT
-```
-
-**重要性：**
-- 避免PipelineRun名称冲突
-- 便于追踪每次运行的结果
-- 支持并发执行
-
-### 5. 创建并执行PipelineRun
-
-```yaml
-- name: Create and execute PipelineRun
-  run: |
-    cat << EOF > pipelinerun-temp.yaml
-    apiVersion: tekton.dev/v1beta1
-    kind: PipelineRun
-    metadata:
-      name: ${{ steps.generate-name.outputs.pipeline_run_name }}
-      namespace: ${TEKTON_NAMESPACE}
-    spec:
-      pipelineRef:
-        name: pytest-pipeline
-      params:
-        - name: git-url
-          value: "${{ github.server_url }}/${{ github.repository }}.git"
-        - name: git-revision
-          value: "${{ github.sha }}"
-      workspaces:
-        - name: shared-data
-          volumeClaimTemplate:
-            spec:
-              accessModes:
-                - ReadWriteOnce
-              resources:
-                requests:
-                  storage: 1Gi
+    # 构造GitHub风格的payload
+    PAYLOAD=$(cat <<EOF
+    {
+      "repository": {
+        "clone_url": "${{ github.server_url }}/${{ github.repository }}.git",
+        "name": "${{ github.event.repository.name }}",
+        "html_url": "${{ github.server_url }}/${{ github.repository }}"
+      },
+      "after": "${{ github.sha }}",
+      "ref": "${{ github.ref }}",
+      "head_commit": {
+        "id": "${{ github.sha }}",
+        "message": "${{ github.event.head_commit.message }}"
+      }
+    }
     EOF
-    kubectl apply -f pipelinerun-temp.yaml
-```
-
-**动态参数：**
-- `git-url`: 使用GitHub提供的仓库URL
-- `git-revision`: 使用当前commit的SHA
-- 动态生成临时的PipelineRun YAML文件
-
-### 6. 等待PipelineRun完成
-
-```yaml
-- name: Wait for PipelineRun completion
-  run: |
-    timeout 600 bash -c "
-      while true; do
-        STATUS=\$(kubectl get pipelinerun \${PIPELINE_RUN_NAME} -n \${TEKTON_NAMESPACE} -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo 'Unknown')
-        REASON=\$(kubectl get pipelinerun \${PIPELINE_RUN_NAME} -n \${TEKTON_NAMESPACE} -o jsonpath='{.status.conditions[0].reason}' 2>/dev/null || echo 'Unknown')
-        
-        if [[ \"\$STATUS\" == \"True\" ]]; then
-          echo \"PipelineRun completed successfully!\"
-          break
-        elif [[ \"\$STATUS\" == \"False\" ]]; then
-          echo \"PipelineRun failed!\"
-          exit 1
-        fi
-        
-        sleep 10
-      done
-    "
-```
-
-**监控机制：**
-- 每10秒检查一次状态
-- 超时时间：10分钟
-- 成功时返回0，失败时返回1
-
-### 7. 获取执行结果
-
-```yaml
-- name: Get PipelineRun results
-  if: always()
-  run: |
-    kubectl get pipelinerun ${PIPELINE_RUN_NAME} -n ${TEKTON_NAMESPACE} -o yaml
-    kubectl get taskruns -n ${TEKTON_NAMESPACE} -l tekton.dev/pipelineRun=${PIPELINE_RUN_NAME}
+    )
     
-    for taskrun in $(kubectl get taskruns -n ${TEKTON_NAMESPACE} -l tekton.dev/pipelineRun=${PIPELINE_RUN_NAME} -o name); do
-      kubectl logs ${taskrun} -n ${TEKTON_NAMESPACE} --all-containers || true
-    done
+    # 发送HTTP POST请求到EventListener
+    echo "Triggering Tekton Pipeline..."
+    curl -X POST \$EVENTLISTENER_URL \
+      -H "Content-Type: application/json" \
+      -H "X-GitHub-Event: push" \
+      -d "\$PAYLOAD"
+    
+    echo "Tekton Pipeline triggered successfully!"
 ```
 
-**输出信息：**
-- PipelineRun的完整状态
-- 所有相关TaskRun的列表
-- 每个TaskRun的完整日志
+**核心逻辑：**
+- 构造GitHub格式的JSON payload
+- 发送HTTP POST到内网EventListener
+- EventListener自动创建PipelineRun
 
-### 8. 清理资源
+### 3. 可选：检查触发状态
 
 ```yaml
-- name: Cleanup
-  if: always()
+- name: Verify Trigger (Optional)
   run: |
-    rm -f pipelinerun-temp.yaml
-    kubectl get pipelinerun -n ${TEKTON_NAMESPACE} --sort-by=.metadata.creationTimestamp -o name | head -n -5 | xargs -r kubectl delete -n ${TEKTON_NAMESPACE} || true
+    echo "Pipeline triggered. Check Tekton Dashboard for execution status:"
+    echo "Dashboard URL: http://tekton.10.117.3.193.nip.io"
+    echo "Commit SHA: ${{ github.sha }}"
 ```
 
-**清理策略：**
-- 删除临时文件
-- 保留最近5个PipelineRun
-- 清理旧的PipelineRun以节省资源
-
-## 环境变量
-
-```yaml
-env:
-  TEKTON_NAMESPACE: default
-```
-
-可以通过修改此变量来使用不同的Kubernetes namespace。
+**说明：**
+- Runner的工作到此结束
+- 具体的Pipeline执行在Tekton中进行
+- 结果查看需要通过Tekton Dashboard
 
 ## 安全考虑
 
-### GitHub Secrets
-如果需要额外的安全信息（如私有仓库访问token），可以使用GitHub Secrets：
+### Runner权限最小化
+自宿主runner只需要：
+- 网络访问Kubernetes集群内网
+- 不需要kubectl权限
+- 不需要直接访问Tekton资源
 
-```yaml
-- name: Access private resources
-  run: |
-    echo ${{ secrets.KUBE_CONFIG }} | base64 -d > ~/.kube/config
-```
-
-### Runner权限
-自宿主runner需要适当的权限：
-- 对Kubernetes集群的读写访问
-- 能够创建和删除Tekton资源
-- 网络访问GitHub.com
+### 网络安全
+- EventListener只监听内网，无外部暴露
+- 使用ClusterIP Service，确保安全隔离
+- 可选：配置GitHub webhook secret验证
 
 ## 故障排除
 
 ### 常见问题
 
-1. **kubectl访问失败**
+1. **HTTP请求失败**
    ```bash
-   # 检查kubeconfig
-   kubectl config view
-   kubectl config current-context
+   # 在runner机器上测试网络连通性
+   curl -v http://el-github-listener.default.svc.cluster.local:8080
    ```
 
-2. **PipelineRun创建失败**
+2. **EventListener无响应**
    ```bash
-   # 检查RBAC权限
-   kubectl auth can-i create pipelineruns
+   # 检查EventListener状态
+   kubectl get eventlistener -n default
+   kubectl logs -l eventlistener=github-listener -n default
    ```
 
-3. **Tekton组件未找到**
+3. **PipelineRun未创建**
    ```bash
-   # 检查Tekton安装
-   kubectl get pods -n tekton-pipelines
+   # 检查Triggers配置
+   kubectl get triggerbindings,triggertemplates -n default
    ```
 
-### 调试命令
+### 调试步骤
 
-```bash
-# 查看workflow运行日志（在GitHub Actions页面）
-# 检查runner状态
-systemctl status actions.runner.your-runner-name
+1. **查看GitHub Actions日志** - 确认HTTP请求是否发送成功
+2. **检查EventListener日志** - 确认请求是否被接收和处理
+3. **查看Tekton Dashboard** - 确认PipelineRun是否被创建
 
-# 查看PipelineRun状态
-kubectl get pipelinerun -n default
+## 优势总结
 
-# 查看TaskRun日志
-kubectl logs -f taskrun/your-taskrun-name -n default
-```
+### 相比传统kubectl方式的优势
 
-## 最佳实践
-
-### 1. 资源管理
-- 定期清理旧的PipelineRun
-- 监控存储使用情况
-- 设置合适的资源限制
-
-### 2. 安全性
-- 使用最小权限原则
-- 定期更新runner环境
-- 避免在日志中暴露敏感信息
-
-### 3. 可维护性
-- 使用清晰的命名约定
-- 添加适当的错误处理
-- 保持workflow简洁明了
+1. **职责清晰**: Runner只负责触发，不执行业务逻辑
+2. **安全性高**: 无需在Runner上配置kubectl权限
+3. **可扩展**: 支持多种触发源，易于扩展
+4. **生产级**: 符合企业级CI/CD架构最佳实践
+5. **易维护**: 配置简单，故障点少
 
 ## 下一步
 

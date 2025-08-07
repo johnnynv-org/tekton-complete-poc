@@ -1,14 +1,14 @@
-# 05 - Tekton Pipeline配置
+# 06 - Tekton Pipeline配置
 
-本文档详细说明Tekton Pipeline和Task的配置，以及如何在Kubernetes中执行pytest测试。
+本文档详细说明Tekton Pipeline和Task的配置，专注于业务逻辑的执行，与Triggers组件协同工作。
 
 ## Tekton组件架构
 
 ```
-GitHub Actions → kubectl apply → Kubernetes Cluster
-                                      ↓
-                              Tekton Pipeline
-                                      ↓
+EventListener → TriggerTemplate → PipelineRun Creation
+                                        ↓
+                                Tekton Pipeline
+                                        ↓
                  ┌─────────────────────────────────────┐
                  │           pytest-task                │
                  │  ┌─────────┬─────────┬─────────┬─── │
@@ -17,6 +17,12 @@ GitHub Actions → kubectl apply → Kubernetes Cluster
                  │  └─────────┴─────────┴─────────┴────┘
                  └─────────────────────────────────────┘
 ```
+
+**触发流程：**
+1. EventListener接收HTTP请求
+2. TriggerTemplate自动创建PipelineRun
+3. Pipeline执行预定义的Task序列
+4. 每个Task独立完成特定功能
 
 ## Task配置详解
 
