@@ -1,10 +1,31 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: simple-pipeline
+  name: pytest-pipeline
+  namespace: default
 spec:
+  description: CI/CD Pipeline for Python pytest POC
+  params:
+    - name: git-url
+      type: string
+      description: Git repository URL
+      default: "https://github.com/johnnynv/tekton-poc.git"
+    - name: git-revision
+      type: string
+      description: Git revision to checkout
+      default: main
+  workspaces:
+    - name: shared-data
+      description: Shared workspace for pipeline tasks
   tasks:
-    - name: run-python-script
+    - name: run-pytest-tests
       taskRef:
-        name: run-python-script
-
+        name: pytest-task
+      params:
+        - name: git-url
+          value: $(params.git-url)
+        - name: git-revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: source
+          workspace: shared-data

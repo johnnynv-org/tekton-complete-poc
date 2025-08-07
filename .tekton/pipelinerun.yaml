@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: pytest-pipeline-run
+  namespace: default
+spec:
+  pipelineRef:
+    name: pytest-pipeline
+  params:
+    - name: git-url
+      value: "https://github.com/johnnynv/tekton-poc.git"
+    - name: git-revision
+      value: main
+  workspaces:
+    - name: shared-data
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
