@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  TEKTON_NAMESPACE: default
-
 jobs:
   trigger-tekton:
     runs-on: swqa-gh-runner-poc
@@ -19,108 +16,73 @@ jobs:
       
     - name: Verify kubectl access
       run: |
-        echo "Checking kubectl access..."
+        echo "Verifying kubectl access to cluster..."
         kubectl version --client
         kubectl config current-context
-        kubectl get nodes
+        kubectl get nodes --no-headers | wc -l | xargs echo "Connected to cluster with nodes:"
         
-    - name: Apply Tekton Task
+    - name: Apply Tekton Pipeline definitions
       run: |
-        echo "Applying Tekton Task..."
-        kubectl apply -f .tekton/task-pytest.yaml
+        echo "Applying Tekton Pipeline definitions from current codebase..."
         
-    - name: Apply Tekton Pipeline
-      run: |
-        echo "Applying Tekton Pipeline..."
-        kubectl apply -f .tekton/pipeline.yaml
+        # Apply Task definition
+        echo "📋 Applying Task..."
+        kubectl apply -f .tekton/pipelines/task-pytest.yaml
         
-    - name: Generate unique PipelineRun name
-      id: generate-name
-      run: |
-        TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-        PIPELINE_RUN_NAME="pytest-pipeline-run-${TIMESTAMP}"
-        echo "pipeline_run_name=${PIPELINE_RUN_NAME}" >> $GITHUB_OUTPUT
-        echo "Generated PipelineRun name: ${PIPELINE_RUN_NAME}"
+        # Apply Pipeline definition  
+        echo "🔄 Applying Pipeline..."
+        kubectl apply -f .tekton/pipelines/pipeline.yaml
         
-    - name: Create and execute PipelineRun
+        # Verify resources were created/updated
+        echo "✅ Verifying resources..."
+        kubectl get task pytest-task -n default
+        kubectl get pipeline pytest-pipeline -n default
+        
+    - name: Trigger Tekton Pipeline execution
       run: |
-        # Create a unique PipelineRun with current GitHub repo info
-        cat << EOF > pipelinerun-temp.yaml
-        apiVersion: tekton.dev/v1beta1
-        kind: PipelineRun
-        metadata:
-          name: ${{ steps.generate-name.outputs.pipeline_run_name }}
-          namespace: ${TEKTON_NAMESPACE}
-        spec:
-          pipelineRef:
-            name: pytest-pipeline
-          params:
-            - name: git-url
-              value: "${{ github.server_url }}/${{ github.repository }}.git"
-            - name: git-revision
-              value: "${{ github.sha }}"
-          workspaces:
-            - name: shared-data
-              volumeClaimTemplate:
-                spec:
-                  accessModes:
-                    - ReadWriteOnce
-                  resources:
-                    requests:
-                      storage: 1Gi
+        # Use NodePort for external access (Runner cannot reach ClusterIP network)
+        NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        EVENTLISTENER_URL="http://$NODE_IP:30080"
+        
+        echo "🔍 Using NodePort access: $EVENTLISTENER_URL"
+        
+        # Construct GitHub-style payload
+        PAYLOAD=$(cat <<EOF
+        {
+          "repository": {
+            "clone_url": "${{ github.server_url }}/${{ github.repository }}.git",
+            "name": "${{ github.event.repository.name }}",
+            "html_url": "${{ github.server_url }}/${{ github.repository }}"
+          },
+          "after": "${{ github.sha }}",
+          "ref": "${{ github.ref }}",
+          "head_commit": {
+            "id": "${{ github.sha }}",
+            "message": "${{ github.event.head_commit.message }}"
+          }
+        }
         EOF
+        )
         
-        echo "Creating PipelineRun..."
-        kubectl apply -f pipelinerun-temp.yaml
+        # Send HTTP POST request to EventListener
+        echo "🚀 Triggering Tekton Pipeline execution..."
+        echo "📡 Target URL: $EVENTLISTENER_URL"
+        echo "🔍 Commit SHA: ${{ github.sha }}"
         
-    - name: Wait for PipelineRun completion
-      run: |
-        echo "Waiting for PipelineRun to complete..."
-        PIPELINE_RUN_NAME="${{ steps.generate-name.outputs.pipeline_run_name }}"
+        RESPONSE=$(curl -w "\nHTTP_CODE:%{http_code}" -X POST $EVENTLISTENER_URL \
+          -H "Content-Type: application/json" \
+          -H "X-GitHub-Event: push" \
+          -d "$PAYLOAD")
         
-        # Wait for up to 10 minutes
-        timeout 600 bash -c "
-          while true; do
-            STATUS=\$(kubectl get pipelinerun \${PIPELINE_RUN_NAME} -n \${TEKTON_NAMESPACE} -o jsonpath='{.status.conditions[0].status}' 2>/dev/null || echo 'Unknown')
-            REASON=\$(kubectl get pipelinerun \${PIPELINE_RUN_NAME} -n \${TEKTON_NAMESPACE} -o jsonpath='{.status.conditions[0].reason}' 2>/dev/null || echo 'Unknown')
-            
-            echo \"PipelineRun status: \$STATUS, reason: \$REASON\"
-            
-            if [[ \"\$STATUS\" == \"True\" ]]; then
-              echo \"PipelineRun completed successfully!\"
-              break
-            elif [[ \"\$STATUS\" == \"False\" ]]; then
-              echo \"PipelineRun failed!\"
-              kubectl describe pipelinerun \${PIPELINE_RUN_NAME} -n \${TEKTON_NAMESPACE}
-              exit 1
-            fi
-            
-            sleep 10
-          done
-        "
+        HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
         
-    - name: Get PipelineRun results
-      if: always()
-      run: |
-        PIPELINE_RUN_NAME="${{ steps.generate-name.outputs.pipeline_run_name }}"
-        echo "=== PipelineRun Status ==="
-        kubectl get pipelinerun ${PIPELINE_RUN_NAME} -n ${TEKTON_NAMESPACE} -o yaml
-        
-        echo "=== TaskRun Logs ==="
-        kubectl get taskruns -n ${TEKTON_NAMESPACE} -l tekton.dev/pipelineRun=${PIPELINE_RUN_NAME}
-        
-        # Get logs from all TaskRuns
-        for taskrun in $(kubectl get taskruns -n ${TEKTON_NAMESPACE} -l tekton.dev/pipelineRun=${PIPELINE_RUN_NAME} -o name); do
-          echo "=== Logs for ${taskrun} ==="
-          kubectl logs ${taskrun} -n ${TEKTON_NAMESPACE} --all-containers || true
-        done
-        
-    - name: Cleanup
-      if: always()
-      run: |
-        # Clean up the temporary PipelineRun file
-        rm -f pipelinerun-temp.yaml
-        
-        # Optionally clean up old PipelineRuns (keep last 5)
-        echo "Cleaning up old PipelineRuns..."
-        kubectl get pipelinerun -n ${TEKTON_NAMESPACE} --sort-by=.metadata.creationTimestamp -o name | head -n -5 | xargs -r kubectl delete -n ${TEKTON_NAMESPACE} || true
+        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+          echo "✅ Tekton Pipeline triggered successfully!"
+          echo "📊 Dashboard: http://tekton.10.117.3.193.nip.io"
+          echo "🔍 PipelineRun: pytest-run-${{ github.sha }}"
+          echo "⏱️  Check dashboard in ~30 seconds for execution status"
+        else
+          echo "❌ Failed to trigger Tekton Pipeline (HTTP $HTTP_CODE)"
+          echo "Response: $RESPONSE"
+          exit 1
+        fi

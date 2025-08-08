@@ -4,15 +4,23 @@
 
 ## 设计理念
 
-### 职责分离
-- **GitHub Actions**: 负责接收webhook，简单的参数处理
-- **Runner**: 只负责HTTP请求转发，不执行业务逻辑
+### 职责分离（方案1：Pipeline即代码）
+- **GitHub Actions**: 接收webhook，应用当前代码的Pipeline定义，触发执行
+- **Runner**: 负责kubectl操作和HTTP请求转发
 - **Tekton**: 负责所有CI/CD业务逻辑的执行
+
+### 核心优势
+- **Pipeline即代码**: Pipeline定义与业务代码版本同步
+- **动态更新**: 每次提交都使用最新的Pipeline配置
+- **版本控制**: Pipeline变更可追踪和回滚
 
 ### 自宿主Runner信息
 - **Runner名称**: `swqa-gh-runner-poc`
 - **运行环境**: 能够访问Kubernetes集群内网的机器
-- **权限**: 最小化权限，只需要网络访问EventListener服务
+- **权限要求**: 
+  - kubectl访问权限（应用Pipeline定义）
+  - 网络访问EventListener服务
+  - 对default namespace的Tekton资源读写权限
 
 ## Workflow配置文件
 
@@ -46,7 +54,7 @@ jobs:
 - 能够访问Kubernetes集群
 - 安装了kubectl命令行工具
 
-## Workflow步骤详解（简化版）
+## Workflow步骤详解（Pipeline即代码版）
 
 ### 1. 代码检出
 
@@ -55,9 +63,48 @@ jobs:
   uses: actions/checkout@v4
 ```
 
-检出代码，主要用于获取仓库信息和构造HTTP请求。
+检出代码，获取最新的Pipeline定义和业务代码。
 
-### 2. 触发Tekton EventListener
+### 2. 验证kubectl访问
+
+```yaml
+- name: Verify kubectl access
+  run: |
+    echo "Verifying kubectl access to cluster..."
+    kubectl version --client
+    kubectl config current-context
+    kubectl get nodes --no-headers | wc -l | xargs echo "Connected to cluster with nodes:"
+```
+
+确保Runner能正常访问Kubernetes集群。
+
+### 3. 应用Pipeline定义
+
+```yaml
+- name: Apply Tekton Pipeline definitions
+  run: |
+    echo "Applying Tekton Pipeline definitions from current codebase..."
+    
+    # Apply Task definition
+    echo "📋 Applying Task..."
+    kubectl apply -f .tekton/task-pytest.yaml
+    
+    # Apply Pipeline definition  
+    echo "🔄 Applying Pipeline..."
+    kubectl apply -f .tekton/pipeline.yaml
+    
+    # Verify resources were created/updated
+    echo "✅ Verifying resources..."
+    kubectl get task pytest-task -n default
+    kubectl get pipeline pytest-pipeline -n default
+```
+
+**关键特性：**
+- 使用当前commit的Pipeline定义
+- 支持Pipeline版本演进
+- 确保定义与代码同步
+
+### 4. 触发Pipeline执行
 
 ```yaml
 - name: Trigger Tekton Pipeline

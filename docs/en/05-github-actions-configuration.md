@@ -4,15 +4,23 @@ This document details the simplified GitHub Actions workflow configuration, focu
 
 ## Design Philosophy
 
-### Separation of Concerns
-- **GitHub Actions**: Handles webhook reception and simple parameter processing
-- **Runner**: Only responsible for HTTP request forwarding, no business logic execution
+### Separation of Concerns (Solution 1: Pipeline as Code)
+- **GitHub Actions**: Receives webhooks, applies current Pipeline definitions, triggers execution
+- **Runner**: Handles kubectl operations and HTTP request forwarding
 - **Tekton**: Handles all CI/CD business logic execution
+
+### Core Advantages
+- **Pipeline as Code**: Pipeline definitions sync with business code versions
+- **Dynamic Updates**: Each commit uses the latest Pipeline configuration
+- **Version Control**: Pipeline changes are trackable and rollback-able
 
 ### Self-hosted Runner Information
 - **Runner Name**: `swqa-gh-runner-poc`
 - **Environment**: Machine that can access Kubernetes cluster internal network
-- **Permissions**: Minimal permissions, only needs network access to EventListener service
+- **Permission Requirements**: 
+  - kubectl access (apply Pipeline definitions)
+  - Network access to EventListener service
+  - Read/write access to Tekton resources in default namespace
 
 ## Workflow Configuration File
 
