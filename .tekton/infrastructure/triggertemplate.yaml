@@ -33,6 +33,8 @@ spec:
             value: $(tt.params.git-url)
           - name: git-revision
             value: $(tt.params.git-revision)
+          - name: git-short-sha
+            value: $(tt.params.git-short-sha)
         workspaces:
           - name: shared-data
             volumeClaimTemplate:

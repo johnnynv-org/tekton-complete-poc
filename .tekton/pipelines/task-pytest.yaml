@@ -111,6 +111,9 @@ spec:
         
         echo "📊 Preparing Test Reports Summary..."
         
+        # Install curl for uploading reports
+        apk add --no-cache curl
+        
         # Create a simple index page with links to all reports
         cat > reports/index.html << 'EOF'
         <!DOCTYPE html>
@@ -191,3 +194,153 @@ spec:
         if [ -f reports/summary.txt ]; then
           cat reports/summary.txt
         fi
+    
+    - name: upload-to-web-server
+      image: alpine:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/sh
+        set -e
+        
+        echo "🌐 Uploading reports to Web server..."
+        
+        # Get pipeline info
+        SHORT_SHA=$(echo "$(params.git-revision)" | cut -c1-8)
+        FULL_SHA="$(params.git-revision)"
+        PIPELINE_DIR="pytest-run-$SHORT_SHA"
+        TARGET_DIR="/shared-reports/$PIPELINE_DIR"
+        
+        echo "📁 Creating target directory: $TARGET_DIR"
+        mkdir -p "$TARGET_DIR"
+        
+        echo "📤 Copying reports..."
+        cp -r reports/* "$TARGET_DIR/"
+        
+        # Extract test statistics from pytest report
+        TOTAL_TESTS=0
+        PASSED_TESTS=0
+        FAILED_TESTS=0
+        COVERAGE_PERCENT="0%"
+        
+        if [ -f "$TARGET_DIR/pytest-report.html" ]; then
+          # Extract basic stats (simplified parsing)
+          TOTAL_TESTS=$(grep -o "[0-9]\+ passed" "$TARGET_DIR/pytest-report.html" | head -1 | grep -o "[0-9]\+" || echo "0")
+          PASSED_TESTS=$TOTAL_TESTS
+          
+          # Try to get coverage percentage
+          if [ -f "$TARGET_DIR/coverage.xml" ]; then
+            COVERAGE_PERCENT=$(grep -o 'line-rate="[0-9.]*"' "$TARGET_DIR/coverage.xml" | head -1 | grep -o '[0-9.]*' | awk '{printf "%.1f%%", $1*100}' || echo "0%")
+          fi
+        fi
+        
+        # Create pipeline metadata JSON
+        cat > "$TARGET_DIR/metadata.json" << EOF
+        {
+          "pipeline_name": "$PIPELINE_DIR",
+          "short_sha": "$SHORT_SHA", 
+          "full_sha": "$FULL_SHA",
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "stats": {
+            "total_tests": $TOTAL_TESTS,
+            "passed_tests": $PASSED_TESTS,
+            "failed_tests": $FAILED_TESTS,
+            "coverage_percent": "$COVERAGE_PERCENT"
+          },
+          "reports": {
+            "pytest_report": "pytest-report.html",
+            "smoke_tests": "smoke-tests.html", 
+            "coverage_html": "coverage-html/index.html",
+            "coverage_xml": "coverage.xml",
+            "summary": "summary.txt"
+          }
+        }
+        EOF
+        
+        echo "📊 Updating main index page..."
+        # Create/update main index page
+        cat > "/shared-reports/index.html" << 'MAIN_EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Tekton POC - Test Results Dashboard</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; background: #f8f9fa; }
+                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 0; text-align: center; }
+                .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+                .pipeline-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; margin: 20px 0; }
+                .pipeline-card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; transition: transform 0.2s; }
+                .pipeline-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+                .pipeline-title { font-size: 18px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
+                .pipeline-meta { color: #666; font-size: 14px; margin-bottom: 15px; }
+                .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+                .stat-item { text-align: center; padding: 8px; background: #f8f9fa; border-radius: 4px; }
+                .stat-value { font-size: 20px; font-weight: bold; color: #27ae60; }
+                .stat-label { font-size: 12px; color: #666; }
+                .coverage { color: #3498db; }
+                .failed { color: #e74c3c; }
+                .links { display: flex; gap: 10px; flex-wrap: wrap; }
+                .btn { padding: 8px 12px; border-radius: 4px; text-decoration: none; font-size: 12px; font-weight: bold; }
+                .btn-primary { background: #3498db; color: white; }
+                .btn-success { background: #27ae60; color: white; }
+                .btn-info { background: #17a2b8; color: white; }
+                .no-pipelines { text-align: center; color: #666; font-style: italic; margin: 40px 0; }
+                .refresh-note { text-align: center; color: #666; font-size: 14px; margin-top: 20px; }
+            </style>
+            <script>
+                async function loadPipelines() {
+                    try {
+                        const response = await fetch('/api/pipelines');
+                        const pipelines = await response.json();
+                        displayPipelines(pipelines);
+                    } catch (error) {
+                        console.log('Using static content - API not available');
+                        // Fallback to static directory listing if API not available
+                    }
+                }
+                
+                function displayPipelines(pipelines) {
+                    // This would be populated by the API or manual updates
+                }
+            </script>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🧪 Tekton POC - Test Results Dashboard</h1>
+                <p>Python pytest CI/CD Pipeline Results</p>
+            </div>
+            
+            <div class="container">
+                <div class="pipeline-grid" id="pipeline-list">
+                    <!-- Pipeline cards will be inserted here -->
+                    <div class="no-pipelines">
+                        🔄 Loading pipeline results...
+                        <br><br>
+                        If no results appear, check individual pipeline directories below.
+                    </div>
+                </div>
+                
+                <div class="refresh-note">
+                    <p>📱 <strong>Quick Access:</strong></p>
+                    <p>🏠 <a href="http://tekton.10.117.3.193.nip.io">Tekton Dashboard</a> | 
+                       📊 <a href="http://tekton.10.117.3.193.nip.io/artifacts/">Test Artifacts</a> |
+                       📱 <a href="https://github.com/johnnynv/tekton-poc">GitHub Repository</a></p>
+                    <p><em>Access: tekton.10.117.3.193.nip.io/artifacts/</em></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        MAIN_EOF
+        
+        echo "✅ Reports uploaded successfully!"
+        echo "🌐 Main Dashboard: http://tekton.10.117.3.193.nip.io/artifacts/"
+        echo "🎯 This Pipeline: http://tekton.10.117.3.193.nip.io/artifacts/$PIPELINE_DIR/"
+        echo "📊 Statistics: $PASSED_TESTS tests passed, $COVERAGE_PERCENT coverage"
+        echo "📋 Uploaded files:"
+        ls -la "$TARGET_DIR"
+      volumeMounts:
+        - name: shared-reports
+          mountPath: /shared-reports
+  volumes:
+    - name: shared-reports
+      persistentVolumeClaim:
+        claimName: test-reports-pvc

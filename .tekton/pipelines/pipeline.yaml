@@ -14,6 +14,10 @@ spec:
       type: string
       description: Git revision to checkout
       default: main
+    - name: git-short-sha
+      type: string
+      description: Short SHA for naming
+      default: "latest"
   workspaces:
     - name: shared-data
       description: Shared workspace for pipeline tasks
@@ -34,9 +38,12 @@ spec:
       params:
         - name: git-revision
           value: $(params.git-revision)
+        - name: git-short-sha
+          value: $(params.git-short-sha)
       taskSpec:
         params:
           - name: git-revision
+          - name: git-short-sha
         steps:
           - name: display-links
             image: alpine:latest
@@ -45,22 +52,38 @@ spec:
               echo ""
               echo "🎉 ===== PYTEST EXECUTION COMPLETED ===== 🎉"
               echo ""
+              
+              # Get short SHA for consistent naming
+              SHORT_SHA=$(echo "$(params.git-revision)" | cut -c1-8)
+              FULL_SHA="$(params.git-revision)"
+              
               echo "📊 Test Reports Generated Successfully!"
+              echo "🎯 Git SHA: $SHORT_SHA (from $FULL_SHA)"
               echo ""
+              
+              echo "🔗 ===== KEY LINKS ===== 🔗"
+              echo ""
+              echo "📊 Test Reports Web UI:"
+              echo "   🌐 Main Dashboard: http://tekton.10.117.3.193.nip.io/artifacts/"
+              echo "   🎯 This Pipeline: http://tekton.10.117.3.193.nip.io/artifacts/pytest-run-$SHORT_SHA/"
+              echo "   📋 View HTML reports, coverage analysis, download artifacts"
+              echo ""
+              echo "📈 Tekton Dashboard:"
+              echo "   🏠 Main Dashboard: http://tekton.10.117.3.193.nip.io"
+              echo "   🎯 This PipelineRun: http://tekton.10.117.3.193.nip.io/#/namespaces/tekton-pipelines/pipelineruns/pytest-run-$SHORT_SHA"
+              echo ""
+              echo "📱 GitHub Repository:"
+              echo "   🔗 https://github.com/johnnynv/tekton-poc/commit/$FULL_SHA"
+              echo ""
+              
               echo "📋 Available Reports:"
               echo "   📈 Full Test Report (HTML)"
               echo "   💨 Smoke Tests Report" 
               echo "   📊 Code Coverage Analysis"
-              echo "   ⬇️  Downloadable Artifacts (XML, logs)"
+              echo "   📁 Coverage XML for CI/CD integration"
+              echo "   📜 Execution logs and summaries"
               echo ""
-              echo "🔍 To Access Reports:"
-              echo "   1. Check Task logs above for test results summary"
-              echo "   2. Use kubectl to copy files from PipelineRun workspace:"
-              echo "      kubectl cp <pod-name>:/workspace/source/reports ./local-reports"
-              echo "   3. Or check detailed logs in Tekton Dashboard"
-              echo ""
-              echo "🎯 Git SHA: $(params.git-revision)"
-              echo "🏠 Tekton Dashboard: http://tekton.10.117.3.193.nip.io"
-              echo ""
+              
+              echo "⏱️  Reports available immediately at the Web UI link above"
               echo "✅ Pipeline completed successfully!"
               echo "=============================================="
