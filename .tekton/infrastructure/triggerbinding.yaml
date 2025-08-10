@@ -11,5 +11,3 @@ spec:
       value: $(body.after)
     - name: repo-name
       value: $(body.repository.name)
-    - name: commit-message
-      value: $(body.head_commit.message)

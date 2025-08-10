@@ -11,8 +11,6 @@ spec:
       description: Git revision to checkout
     - name: repo-name
       description: Repository name
-    - name: commit-message
-      description: Commit message
   resourcetemplates:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
