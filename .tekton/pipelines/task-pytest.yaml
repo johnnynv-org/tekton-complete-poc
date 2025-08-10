@@ -55,9 +55,9 @@ spec:
         #!/bin/bash
         set -e
         
-        # Install dependencies once
+        # Install dependencies once (with proper permissions)
         echo "Installing Python dependencies..."
-        pip install -r requirements.txt
+        pip install --user --break-system-packages -r requirements.txt
         echo "Dependencies installed successfully"
         
         # Run all tests

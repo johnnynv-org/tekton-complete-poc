@@ -77,11 +77,12 @@ jobs:
         
         HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
         
-        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-          echo "✅ Tekton Pipeline triggered successfully!"
-          echo "📊 Dashboard: http://tekton.10.117.3.193.nip.io"
-          echo "🔍 PipelineRun: pytest-run-${{ github.sha }}"
-          echo "⏱️  Check dashboard in ~30 seconds for execution status"
+                    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "✅ Tekton Pipeline triggered successfully!"
+              echo "📊 Dashboard: http://tekton.10.117.3.193.nip.io"
+              echo "🔍 Short SHA: $(echo ${{ github.sha }} | cut -c1-8)"
+              echo "⏱️  Check dashboard in ~30 seconds for execution status"
+              echo "💡 Look for PipelineRun starting with: pytest-run-"
         else
           echo "❌ Failed to trigger Tekton Pipeline (HTTP $HTTP_CODE)"
           echo "Response: $RESPONSE"
