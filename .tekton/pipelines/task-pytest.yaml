@@ -35,13 +35,16 @@ spec:
         set -e
         echo "Cloning repository $(params.git-url) at revision $(params.git-revision)"
         
-        # Configure Git to trust the workspace directory
-        git config --global --add safe.directory $(workspaces.source.path)
-        git config --global --add safe.directory '*'
+        # Disable Git ownership checks for this workspace
+        export GIT_CONFIG_GLOBAL=""
+        git config --global --add safe.directory '*' || true
         
-        # Clone and checkout
-        git clone $(params.git-url) .
-        git checkout $(params.git-revision)
+        # Alternative: use environment variable to disable ownership checks
+        export GIT_CEILING_DIRECTORIES=""
+        
+        # Clone and checkout with ownership checks disabled
+        git -c safe.directory='*' clone $(params.git-url) .
+        git -c safe.directory='*' checkout $(params.git-revision)
         echo "Repository cloned successfully"
         ls -la
     
