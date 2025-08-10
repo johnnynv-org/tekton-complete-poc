@@ -161,6 +161,67 @@ This POC demonstrates how to achieve **complete functionality** under **strict s
 - Solve permission conflicts through technical means
 - Provide reproducible solutions for production environments
 
+## Alpine Image Issues with Strict Security Context
+
+### Issue: Task using Alpine image encounters permission errors
+
+**Symptoms:**
+```bash
+ERROR: Unable to lock database: Permission denied
+ERROR: Failed to open apk database: Permission denied
+```
+
+**Root Cause:** 
+Strict Pod Security Policy (`runAsUser: 65532`) prevents Alpine's package manager from accessing system databases.
+
+**Diagnostic Steps:**
+```bash
+# 1. Check Task step logs
+kubectl logs <taskrun-pod> -n tekton-pipelines -c step-<step-name>
+
+# 2. Check security context settings
+kubectl get task <task-name> -n tekton-pipelines -o yaml | grep -A5 stepTemplate
+
+# 3. Verify Pod's running user
+kubectl exec <pod-name> -n tekton-pipelines -- id
+```
+
+**Solutions:**
+
+1. **Use BusyBox instead of Alpine (Recommended):**
+```yaml
+- name: prepare-reports
+  image: busybox:latest  # Replace alpine:latest
+  script: |
+    #!/bin/sh
+    # Avoid using apk add or similar package managers
+```
+
+2. **Or use statically compiled tool images:**
+```yaml
+- name: prepare-reports
+  image: gcr.io/distroless/static:latest
+```
+
+3. **Remove package manager dependencies:**
+```bash
+# ❌ Avoid using in scripts
+apk add --no-cache curl
+apt-get update && apt-get install -y curl
+
+# ✅ Use pre-built images or built-in commands
+```
+
+**Best Practices:**
+- 🚫 **Avoid installing packages in Task steps** - Violates container least privilege principle
+- ✅ **Use pre-built images** - Choose images with required tools already included
+- ✅ **BusyBox compatibility** - More stable in restricted environments than Alpine
+- ✅ **Static binaries** - Distroless images provide minimal attack surface
+
+**Impact:**
+- prepare-test-reports step failure causes subsequent upload-to-web-server step to be skipped
+- Entire Pipeline marked as failed, but Git clone and Python test steps may have executed successfully
+
 ## EventListener Deployment Issues
 
 ### Issue 1: EventListener Pod CrashLoopBackOff
