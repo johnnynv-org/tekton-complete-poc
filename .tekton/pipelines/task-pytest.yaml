@@ -34,6 +34,12 @@ spec:
         #!/bin/sh
         set -e
         echo "Cloning repository $(params.git-url) at revision $(params.git-revision)"
+        
+        # Configure Git to trust the workspace directory
+        git config --global --add safe.directory $(workspaces.source.path)
+        git config --global --add safe.directory '*'
+        
+        # Clone and checkout
         git clone $(params.git-url) .
         git checkout $(params.git-revision)
         echo "Repository cloned successfully"
