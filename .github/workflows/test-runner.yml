@@ -1,0 +1,21 @@
+name: Test Runner Connection
+
+on:
+  workflow_dispatch: # 手动触发
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: swqa-gh-runner-poc
+    timeout-minutes: 2  # 整个job超时2分钟
+    
+    steps:
+    - name: Simple test
+      timeout-minutes: 1
+      run: |
+        echo "🎯 Runner is working!"
+        echo "Current time: $(date)"
+        echo "Current user: $(whoami)"
+        echo "Current directory: $(pwd)"
+        echo "Test completed successfully!"
