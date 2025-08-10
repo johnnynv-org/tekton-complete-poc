@@ -15,33 +15,37 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Verify kubectl access
+      timeout-minutes: 2
       run: |
         echo "Verifying kubectl access to cluster..."
-        kubectl version --client
-        kubectl config current-context
-        kubectl get nodes --no-headers | wc -l | xargs echo "Connected to cluster with nodes:"
+        timeout 30 kubectl version --client
+        timeout 30 kubectl config current-context
+        timeout 30 kubectl get nodes --no-headers | wc -l | xargs echo "Connected to cluster with nodes:"
         
     - name: Apply Tekton Pipeline definitions
+      timeout-minutes: 3
       run: |
         echo "Applying Tekton Pipeline definitions from current codebase..."
         
         # Apply Task definition
         echo "📋 Applying Task..."
-        kubectl apply -f .tekton/pipelines/task-pytest.yaml
+        timeout 60 kubectl apply -f .tekton/pipelines/task-pytest.yaml
         
         # Apply Pipeline definition  
         echo "🔄 Applying Pipeline..."
-        kubectl apply -f .tekton/pipelines/pipeline.yaml
+        timeout 60 kubectl apply -f .tekton/pipelines/pipeline.yaml
         
         # Verify resources were created/updated
         echo "✅ Verifying resources..."
-        kubectl get task pytest-task -n default
-        kubectl get pipeline pytest-pipeline -n default
+        timeout 30 kubectl get task pytest-task -n default
+        timeout 30 kubectl get pipeline pytest-pipeline -n default
         
     - name: Trigger Tekton Pipeline execution
+      timeout-minutes: 5
       run: |
         # Use NodePort for external access (Runner cannot reach ClusterIP network)
-        NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        echo "🔍 Getting cluster node IP..."
+        NODE_IP=$(timeout 30 kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
         EVENTLISTENER_URL="http://$NODE_IP:30080"
         
         echo "🔍 Using NodePort access: $EVENTLISTENER_URL"
@@ -64,12 +68,12 @@ jobs:
         EOF
         )
         
-        # Send HTTP POST request to EventListener
+        # Send HTTP POST request to EventListener with timeout
         echo "🚀 Triggering Tekton Pipeline execution..."
         echo "📡 Target URL: $EVENTLISTENER_URL"
         echo "🔍 Commit SHA: ${{ github.sha }}"
         
-        RESPONSE=$(curl -w "\nHTTP_CODE:%{http_code}" -X POST $EVENTLISTENER_URL \
+        RESPONSE=$(timeout 60 curl -w "\nHTTP_CODE:%{http_code}" -X POST $EVENTLISTENER_URL \
           -H "Content-Type: application/json" \
           -H "X-GitHub-Event: push" \
           -d "$PAYLOAD")
