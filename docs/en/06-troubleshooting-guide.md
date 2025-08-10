@@ -222,6 +222,66 @@ apt-get update && apt-get install -y curl
 - prepare-test-reports step failure causes subsequent upload-to-web-server step to be skipped
 - Entire Pipeline marked as failed, but Git clone and Python test steps may have executed successfully
 
+## PVC Permission Conflicts (Init Container Best Practice)
+
+### Issue: Shared storage permission conflicts
+
+**Symptoms:**
+```bash
+can't create /shared-reports/index.html: Permission denied
+```
+
+**Root Cause:** 
+- Tekton Tasks run as `runAsUser: 65532`
+- Web server Pod may run as different user
+- Inconsistent write permissions on same PVC
+
+**Best Practice Solution: Init Container + fsGroup**
+
+1. **Add Init Container to Web Server:**
+```yaml
+spec:
+  securityContext:
+    fsGroup: 65532  # Match Tekton Task user
+    fsGroupChangePolicy: "OnRootMismatch"
+  
+  initContainers:
+  - name: setup-permissions
+    image: busybox:latest
+    securityContext:
+      runAsUser: 0  # Run as root to set permissions
+      runAsNonRoot: false
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      chown -R 65532:65532 /shared-reports
+      chmod -R 775 /shared-reports
+    volumeMounts:
+    - name: reports-volume
+      mountPath: /shared-reports
+```
+
+2. **Main Container Uses Consistent User:**
+```yaml
+containers:
+- name: nginx
+  securityContext:
+    runAsUser: 65532
+    runAsGroup: 65532
+    runAsNonRoot: true
+```
+
+**Why This is Best Practice:**
+- ✅ **Kubernetes Pattern** - Init containers handle initialization work
+- ✅ **Separation of Concerns** - Permission setup decoupled from application runtime
+- ✅ **One-time Setup** - No need for repeated permission debugging
+- ✅ **Security Controlled** - Main container maintains least privilege principle
+
+**Technical Details:**
+- `fsGroup: 65532`: Ensures all containers have consistent volume permissions
+- `fsGroupChangePolicy: "OnRootMismatch"`: Only changes permissions when necessary
+- Init container runs as root to set ownership, main container runs as nobody for security
+
 ## EventListener Deployment Issues
 
 ### Issue 1: EventListener Pod CrashLoopBackOff
