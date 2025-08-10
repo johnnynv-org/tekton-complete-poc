@@ -5,17 +5,16 @@ metadata:
   namespace: tekton-pipelines
 spec:
   description: Run pytest tests for the project
-  # Pod Security Context for compliance with restricted security policy
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 65532  # nonroot user
-    runAsGroup: 65532
-    seccompProfile:
-      type: RuntimeDefault
-    # Apply to all containers in the pod
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: ["ALL"]
+  # Template for all steps (reduces repetition)
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 65532
+      seccompProfile:
+        type: RuntimeDefault
   params:
     - name: git-url
       type: string
