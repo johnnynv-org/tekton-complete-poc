@@ -8,7 +8,7 @@ on:
 
 jobs:
   trigger-tekton:
-    runs-on: swqa-gh-runner-poc
+    runs-on: swqa-tekton-poc-runner
     
     steps:
     - name: Checkout code
