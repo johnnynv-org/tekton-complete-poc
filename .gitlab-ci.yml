@@ -1,0 +1,136 @@
+# GitLab CI/CD Pipeline for Tekton POC
+# Triggers Tekton Pipeline on internal Kubernetes cluster via EventListener
+# Compatible with existing GitHub Actions workflow logic
+
+stages:
+  - trigger-tekton
+
+# Trigger Tekton Pipeline execution
+trigger-tekton-pipeline:
+  stage: trigger-tekton
+  # Use the same runner machine as GitHub Actions (for POC)
+  # In production, consider using dedicated GitLab runner
+  tags:
+    - swqa-gitlab-runner-poc  # GitLab runner tag (to be configured)
+  timeout: 10 minutes
+  
+  # Define GitLab CI variables for easy reference
+  variables:
+    EVENTLISTENER_URL: "http://10.117.3.193:30080"  # NodePort access to EventListener
+    TEKTON_NAMESPACE: "tekton-pipelines"
+    TEKTON_DASHBOARD: "http://tekton.10.117.3.193.nip.io"
+  
+  before_script:
+    - echo "🚀 GitLab CI/CD triggering Tekton Pipeline..."
+    - echo "📋 Project: $CI_PROJECT_NAME"
+    - echo "🔍 Commit: $CI_COMMIT_SHA"
+    - echo "📅 Pipeline: $CI_PIPELINE_ID"
+  
+  script:
+    # Step 1: Verify kubectl access to cluster
+    - echo "🔍 Verifying kubectl access to cluster..."
+    - timeout 30 kubectl version --client
+    - timeout 30 kubectl config current-context
+    - timeout 30 kubectl get nodes --no-headers | wc -l | xargs echo "Connected to cluster with nodes:"
+    
+    # Step 2: Apply Tekton Pipeline definitions from current codebase (Pipeline as Code)
+    - echo "📋 Applying Tekton Pipeline definitions from current codebase..."
+    - echo "📋 Applying Task..."
+    - timeout 60 kubectl apply -f .tekton/pipelines/task-pytest.yaml
+    - echo "🔄 Applying Pipeline..."
+    - timeout 60 kubectl apply -f .tekton/pipelines/pipeline.yaml
+    - echo "✅ Verifying resources..."
+    - timeout 30 kubectl get task pytest-task -n $TEKTON_NAMESPACE
+    - timeout 30 kubectl get pipeline pytest-pipeline -n $TEKTON_NAMESPACE
+    
+    # Step 3: Trigger Tekton Pipeline execution via EventListener
+    - echo "🔍 Getting cluster node IP for EventListener access..."
+    - NODE_IP=$(timeout 30 kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+    - EVENTLISTENER_URL="http://$NODE_IP:30080"
+    - echo "🔍 Using NodePort access: $EVENTLISTENER_URL"
+    
+    # Calculate short SHA and PipelineRun name beforehand
+    - SHORT_SHA=$(echo "$CI_COMMIT_SHA" | cut -c1-8)
+    - PIPELINERUN_NAME="pytest-run-$SHORT_SHA"
+    - echo "🎯 Planned PipelineRun: $PIPELINERUN_NAME"
+    
+    # Construct GitHub-style payload for EventListener compatibility
+    - |
+      PAYLOAD=$(cat <<EOF
+      {
+        "repository": {
+          "clone_url": "$CI_PROJECT_URL.git",
+          "name": "$CI_PROJECT_NAME"
+        },
+        "after": "$CI_COMMIT_SHA",
+        "short_sha": "$SHORT_SHA",
+        "ref": "$CI_COMMIT_REF_NAME"
+      }
+      EOF
+      )
+    
+    # Send HTTP POST request to EventListener
+    - echo "🚀 Triggering Tekton Pipeline execution..."
+    - echo "📡 Target URL: $EVENTLISTENER_URL"
+    - echo "🔍 Commit SHA: $CI_COMMIT_SHA"
+    - |
+      RESPONSE=$(timeout 60 curl -w "\nHTTP_CODE:%{http_code}" -X POST $EVENTLISTENER_URL \
+        -H "Content-Type: application/json" \
+        -H "X-GitHub-Event: push" \
+        -d "$PAYLOAD")
+    
+    - HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+    
+    # Verify successful trigger
+    - |
+      if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+        echo "✅ Tekton Pipeline triggered successfully!"
+        echo "📊 Dashboard: $TEKTON_DASHBOARD"
+        echo "🎯 PipelineRun: $PIPELINERUN_NAME"
+        echo "🔗 Direct Link: $TEKTON_DASHBOARD/#/namespaces/$TEKTON_NAMESPACE/pipelineruns/$PIPELINERUN_NAME"
+        echo "⏱️  Check dashboard in ~30 seconds for execution status"
+        echo ""
+        echo "🌐 Test Reports will be available at:"
+        echo "   📊 http://tekton.10.117.3.193.nip.io/artifacts/"
+        echo "   🎯 http://tekton.10.117.3.193.nip.io/artifacts/$PIPELINERUN_NAME/"
+      else
+        echo "❌ Failed to trigger Tekton Pipeline (HTTP $HTTP_CODE)"
+        echo "Response: $RESPONSE"
+        exit 1
+      fi
+  
+  # Run only on main branch pushes and merge requests
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - when: never
+  
+  # Allow manual trigger from GitLab UI
+  when: on_success
+
+# Optional: Add a job to show GitLab-specific information
+show-gitlab-info:
+  stage: trigger-tekton
+  tags:
+    - swqa-gitlab-runner-poc
+  script:
+    - echo "📊 GitLab CI/CD Information:"
+    - echo "   Project: $CI_PROJECT_NAME ($CI_PROJECT_ID)"
+    - echo "   Pipeline: $CI_PIPELINE_ID"
+    - echo "   Job: $CI_JOB_ID"
+    - echo "   Commit: $CI_COMMIT_SHA"
+    - echo "   Branch: $CI_COMMIT_REF_NAME"
+    - echo "   Author: $CI_COMMIT_AUTHOR"
+    - echo "   URL: $CI_PROJECT_URL"
+    - echo ""
+    - echo "🔗 GitLab Pipeline URL:"
+    - echo "   $CI_PROJECT_URL/-/pipelines/$CI_PIPELINE_ID"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - when: never
+  allow_failure: true  # This job is informational only
