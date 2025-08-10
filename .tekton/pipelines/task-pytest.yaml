@@ -5,6 +5,17 @@ metadata:
   namespace: tekton-pipelines
 spec:
   description: Run pytest tests for the project
+  # Pod Security Context for compliance with restricted security policy
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532  # nonroot user
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+    # Apply to all containers in the pod
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
   params:
     - name: git-url
       type: string
@@ -29,44 +40,29 @@ spec:
         echo "Repository cloned successfully"
         ls -la
     
-    - name: install-dependencies
+    - name: run-python-tests
       image: python:3.9-slim
       workingDir: $(workspaces.source.path)
       script: |
         #!/bin/bash
         set -e
+        
+        # Install dependencies once
         echo "Installing Python dependencies..."
         pip install -r requirements.txt
         echo "Dependencies installed successfully"
-    
-    - name: run-tests
-      image: python:3.9-slim
-      workingDir: $(workspaces.source.path)
-      script: |
-        #!/bin/bash
-        set -e
+        
+        # Run all tests
         echo "Running all pytest tests..."
-        pip install -r requirements.txt
         python -m pytest tests/ -v --tb=short
         echo "All tests completed successfully"
         
-    - name: run-smoke-tests
-      image: python:3.9-slim
-      workingDir: $(workspaces.source.path)
-      script: |
-        #!/bin/bash
-        set -e
+        # Run smoke tests
         echo "Running smoke tests with -m marker..."
-        pip install -r requirements.txt
         python -m pytest tests/ -v --tb=short -m smoke
         echo "Smoke tests completed successfully"
-    
-    - name: run-main-program
-      image: python:3.9-slim
-      workingDir: $(workspaces.source.path)
-      script: |
-        #!/bin/bash
-        set -e
+        
+        # Run main program
         echo "Running main program..."
         python main.py
         echo "Main program executed successfully"
