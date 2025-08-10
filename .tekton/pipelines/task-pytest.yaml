@@ -55,10 +55,17 @@ spec:
         #!/bin/bash
         set -e
         
-        # Install dependencies once (with proper permissions)
+        # Install dependencies once (with proper permissions for restricted user)
         echo "Installing Python dependencies..."
+        
+        # Set up a writable pip target directory
+        export PYTHONUSERBASE=/workspace/source/.local
+        mkdir -p $PYTHONUSERBASE
+        export PATH=$PYTHONUSERBASE/bin:$PATH
+        
+        # Install with user target to our writable workspace
         pip install --user --break-system-packages -r requirements.txt
-        echo "Dependencies installed successfully"
+        echo "Dependencies installed successfully to $PYTHONUSERBASE"
         
         # Run all tests
         echo "Running all pytest tests..."

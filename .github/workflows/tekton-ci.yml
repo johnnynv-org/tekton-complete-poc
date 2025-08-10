@@ -50,11 +50,17 @@ jobs:
         
         echo "🔍 Using NodePort access: $EVENTLISTENER_URL"
         
-        # Construct minimal GitHub-style payload (only essential fields)
+        # Calculate short SHA and PipelineRun name beforehand
+        SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+        PIPELINERUN_NAME="pytest-run-$SHORT_SHA"
+        echo "🎯 Planned PipelineRun: $PIPELINERUN_NAME"
+        
+        # Construct GitHub-style payload with both full and short SHA
         PAYLOAD=$(jq -n \
           --arg clone_url "${{ github.server_url }}/${{ github.repository }}.git" \
           --arg repo_name "${{ github.event.repository.name }}" \
           --arg after "${{ github.sha }}" \
+          --arg short_sha "$SHORT_SHA" \
           --arg ref "${{ github.ref }}" \
           '{
             "repository": {
@@ -62,6 +68,7 @@ jobs:
               "name": $repo_name
             },
             "after": $after,
+            "short_sha": $short_sha,
             "ref": $ref
           }')
         
@@ -77,12 +84,12 @@ jobs:
         
         HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
         
-                    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
               echo "✅ Tekton Pipeline triggered successfully!"
               echo "📊 Dashboard: http://tekton.10.117.3.193.nip.io"
-              echo "🔍 Short SHA: $(echo ${{ github.sha }} | cut -c1-8)"
+              echo "🎯 PipelineRun: $PIPELINERUN_NAME"
+              echo "🔗 Direct Link: http://tekton.10.117.3.193.nip.io/#/namespaces/tekton-pipelines/pipelineruns/$PIPELINERUN_NAME"
               echo "⏱️  Check dashboard in ~30 seconds for execution status"
-              echo "💡 Look for PipelineRun starting with: pytest-run-"
         else
           echo "❌ Failed to trigger Tekton Pipeline (HTTP $HTTP_CODE)"
           echo "Response: $RESPONSE"

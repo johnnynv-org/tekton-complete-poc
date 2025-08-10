@@ -9,5 +9,7 @@ spec:
       value: $(body.repository.clone_url)
     - name: git-revision
       value: $(body.after)
+    - name: git-short-sha
+      value: $(body.short_sha)
     - name: repo-name
       value: $(body.repository.name)

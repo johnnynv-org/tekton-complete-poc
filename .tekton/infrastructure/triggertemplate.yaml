@@ -9,13 +9,15 @@ spec:
       description: Git repository URL
     - name: git-revision
       description: Git revision to checkout
+    - name: git-short-sha
+      description: Short SHA for naming
     - name: repo-name
       description: Repository name
   resourcetemplates:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
-        generateName: pytest-run-
+        name: pytest-run-$(tt.params.git-short-sha)
         namespace: tekton-pipelines
         labels:
           tekton.dev/pipeline: pytest-pipeline
