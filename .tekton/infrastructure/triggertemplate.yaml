@@ -9,14 +9,22 @@ spec:
       description: Git repository URL
     - name: git-revision
       description: Git revision to checkout
-    - name: git-repo-name
+    - name: repo-name
       description: Repository name
+    - name: commit-message
+      description: Commit message
   resourcetemplates:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
-        name: pytest-run-$(tt.params.git-revision)
+        generateName: pytest-run-
         namespace: tekton-pipelines
+        labels:
+          tekton.dev/pipeline: pytest-pipeline
+          app.kubernetes.io/managed-by: tekton-triggers
+          app.kubernetes.io/part-of: tekton-poc
+          git-repo: $(tt.params.repo-name)
+          git-sha: $(tt.params.git-revision)
       spec:
         pipelineRef:
           name: pytest-pipeline

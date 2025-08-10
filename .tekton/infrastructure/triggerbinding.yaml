@@ -9,7 +9,7 @@ spec:
       value: $(body.repository.clone_url)
     - name: git-revision
       value: $(body.after)
-    - name: git-repo-name
+    - name: repo-name
       value: $(body.repository.name)
-    - name: git-repo-url
-      value: $(body.repository.html_url)
+    - name: commit-message
+      value: $(body.head_commit.message)

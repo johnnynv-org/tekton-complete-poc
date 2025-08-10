@@ -50,23 +50,29 @@ jobs:
         
         echo "🔍 Using NodePort access: $EVENTLISTENER_URL"
         
-        # Construct GitHub-style payload
-        PAYLOAD=$(cat <<EOF
-        {
-          "repository": {
-            "clone_url": "${{ github.server_url }}/${{ github.repository }}.git",
-            "name": "${{ github.event.repository.name }}",
-            "html_url": "${{ github.server_url }}/${{ github.repository }}"
-          },
-          "after": "${{ github.sha }}",
-          "ref": "${{ github.ref }}",
-          "head_commit": {
-            "id": "${{ github.sha }}",
-            "message": "${{ github.event.head_commit.message }}"
-          }
-        }
-        EOF
-        )
+        # Construct GitHub-style payload (escape special characters)
+        COMMIT_MESSAGE=$(echo '${{ github.event.head_commit.message }}' | jq -R .)
+        PAYLOAD=$(jq -n \
+          --arg clone_url "${{ github.server_url }}/${{ github.repository }}.git" \
+          --arg repo_name "${{ github.event.repository.name }}" \
+          --arg html_url "${{ github.server_url }}/${{ github.repository }}" \
+          --arg after "${{ github.sha }}" \
+          --arg ref "${{ github.ref }}" \
+          --arg commit_id "${{ github.sha }}" \
+          --argjson commit_message "$COMMIT_MESSAGE" \
+          '{
+            "repository": {
+              "clone_url": $clone_url,
+              "name": $repo_name,
+              "html_url": $html_url
+            },
+            "after": $after,
+            "ref": $ref,
+            "head_commit": {
+              "id": $commit_id,
+              "message": $commit_message
+            }
+          }')
         
         # Send HTTP POST request to EventListener with timeout
         echo "🚀 Triggering Tekton Pipeline execution..."
