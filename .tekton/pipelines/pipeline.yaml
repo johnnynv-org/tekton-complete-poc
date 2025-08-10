@@ -29,3 +29,33 @@ spec:
       workspaces:
         - name: source
           workspace: shared-data
+  finally:
+    - name: show-test-reports-link
+      params:
+        - name: git-revision
+          value: $(params.git-revision)
+      taskSpec:
+        params:
+          - name: git-revision
+        steps:
+          - name: display-links
+            image: alpine:latest
+            script: |
+              #!/bin/sh
+              echo ""
+              echo "🎉 ===== PYTEST EXECUTION COMPLETED ===== 🎉"
+              echo ""
+              echo "📊 Test Reports Web UI:"
+              echo "🔗 http://10.117.3.193:30081"
+              echo ""
+              echo "📋 Available Reports:"
+              echo "   📈 Full Test Report (HTML)"
+              echo "   💨 Smoke Tests Report" 
+              echo "   📊 Code Coverage Analysis"
+              echo "   ⬇️  Downloadable Artifacts"
+              echo ""
+              echo "⏰ Reports server active for 10 minutes"
+              echo "🎯 Git SHA: $(params.git-revision)"
+              echo ""
+              echo "🏠 Tekton Dashboard: http://tekton.10.117.3.193.nip.io"
+              echo "=============================================="

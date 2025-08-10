@@ -67,17 +67,118 @@ spec:
         pip install --user --break-system-packages -r requirements.txt
         echo "Dependencies installed successfully to $PYTHONUSERBASE"
         
-        # Run all tests
-        echo "Running all pytest tests..."
-        python -m pytest tests/ -v --tb=short
+        # Create reports directory
+        mkdir -p reports
+        
+        # Run all tests with HTML and coverage reports
+        echo "Running all pytest tests with reports..."
+        python -m pytest tests/ -v --tb=short \
+          --html=reports/pytest-report.html --self-contained-html \
+          --cov=src --cov-report=html:reports/coverage-html \
+          --cov-report=xml:reports/coverage.xml \
+          --cov-report=term-missing
         echo "All tests completed successfully"
         
         # Run smoke tests
         echo "Running smoke tests with -m marker..."
-        python -m pytest tests/ -v --tb=short -m smoke
+        python -m pytest tests/ -v --tb=short -m smoke \
+          --html=reports/smoke-tests.html --self-contained-html
         echo "Smoke tests completed successfully"
         
         # Run main program
         echo "Running main program..."
-        python main.py
+        python main.py > reports/main-output.log 2>&1
         echo "Main program executed successfully"
+        
+        # Generate test summary
+        echo "=== TEST SUMMARY ===" > reports/summary.txt
+        echo "Generated at: $(date)" >> reports/summary.txt
+        echo "Git SHA: $(params.git-revision)" >> reports/summary.txt
+        echo "Repository: $(params.git-url)" >> reports/summary.txt
+        echo "" >> reports/summary.txt
+        
+        # Count test results (approximate)
+        TOTAL_TESTS=$(grep -o "test session starts" reports/pytest-report.html | wc -l)
+        echo "Test execution completed. Check reports/ directory for details." >> reports/summary.txt
+        ls -la reports/ >> reports/summary.txt
+    
+    - name: serve-test-reports
+      image: python:3.9-slim
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/bin/bash
+        set -e
+        
+        echo "🌐 Starting Test Reports Web Server..."
+        
+        # Create a simple index page with links to all reports
+        cat > reports/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Pytest Test Reports - Tekton POC</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+                .section { margin: 20px 0; padding: 15px; background: #ecf0f1; border-radius: 5px; }
+                .section h3 { color: #27ae60; margin-top: 0; }
+                a { color: #3498db; text-decoration: none; font-weight: bold; }
+                a:hover { text-decoration: underline; }
+                .download-section { background: #fff3cd; border-left: 4px solid #ffc107; }
+                .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+                .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+                ul { list-style-type: none; padding: 0; }
+                li { margin: 8px 0; padding: 8px; background: white; border-radius: 3px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🧪 Pytest Test Reports - Tekton POC</h1>
+                
+                <div class="section">
+                    <h3>📊 Test Reports</h3>
+                    <ul>
+                        <li>📈 <a href="pytest-report.html">Full Test Report (HTML)</a> - Complete test results with details</li>
+                        <li>💨 <a href="smoke-tests.html">Smoke Tests Report</a> - Critical functionality tests</li>
+                        <li>📋 <a href="coverage-html/index.html">Code Coverage Report</a> - Line-by-line coverage analysis</li>
+                        <li>📄 <a href="summary.txt">Test Summary</a> - Quick overview and logs</li>
+                    </ul>
+                </div>
+                
+                <div class="section download-section">
+                    <h3>⬇️ Download Artifacts</h3>
+                    <ul>
+                        <li>📁 <a href="coverage.xml">Coverage XML</a> - Machine-readable coverage data</li>
+                        <li>📜 <a href="main-output.log">Application Output Log</a> - Main program execution log</li>
+                        <li>📊 <a href="summary.txt">Summary Text File</a> - Test execution summary</li>
+                    </ul>
+                </div>
+                
+                <div class="status success">
+                    <strong>✅ Test Execution Completed!</strong><br>
+                    Pipeline: pytest-pipeline | Namespace: tekton-pipelines<br>
+                    Git SHA: Check summary.txt for details
+                </div>
+                
+                <div class="section">
+                    <h3>🔗 Quick Links</h3>
+                    <ul>
+                        <li>🏠 <a href="http://tekton.10.117.3.193.nip.io">Tekton Dashboard</a></li>
+                        <li>📱 <a href="https://github.com/johnnynv/tekton-poc">GitHub Repository</a></li>
+                    </ul>
+                </div>
+            </div>
+        </body>
+        </html>
+        EOF
+        
+        # Start HTTP server on port 8080
+        echo "📡 Starting HTTP server on port 8080..."
+        echo "🔗 Access reports at: http://localhost:8080"
+        echo "📋 Available reports:"
+        ls -la reports/
+        
+        cd reports
+        # Keep server running for 10 minutes to allow inspection
+        timeout 600 python -m http.server 8080 --bind 0.0.0.0 || echo "⏰ Server timeout after 10 minutes"
