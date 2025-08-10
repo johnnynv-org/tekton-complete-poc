@@ -30,7 +30,7 @@ rules:
     resources: ["interceptors"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["tekton.dev"]
-    resources: ["pipelineruns", "taskruns"]
+    resources: ["pipelineruns", "taskruns", "tasks", "pipelines"]
     verbs: ["create", "get", "list", "watch"]
   - apiGroups: [""]
     resources: ["configmaps", "secrets"]

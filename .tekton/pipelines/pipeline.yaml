@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
   name: pytest-pipeline
-  namespace: default
+  namespace: tekton-pipelines
 spec:
   description: CI/CD Pipeline for Python pytest POC
   params:

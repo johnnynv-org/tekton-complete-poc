@@ -37,8 +37,8 @@ jobs:
         
         # Verify resources were created/updated
         echo "✅ Verifying resources..."
-        timeout 30 kubectl get task pytest-task -n default
-        timeout 30 kubectl get pipeline pytest-pipeline -n default
+        timeout 30 kubectl get task pytest-task -n tekton-pipelines
+        timeout 30 kubectl get pipeline pytest-pipeline -n tekton-pipelines
         
     - name: Trigger Tekton Pipeline execution
       timeout-minutes: 5

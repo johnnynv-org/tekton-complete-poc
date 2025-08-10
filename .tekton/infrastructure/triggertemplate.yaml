@@ -2,7 +2,7 @@ apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
   name: pytest-trigger-template
-  namespace: default
+  namespace: tekton-pipelines
 spec:
   params:
     - name: git-url
@@ -16,7 +16,7 @@ spec:
       kind: PipelineRun
       metadata:
         name: pytest-run-$(tt.params.git-revision)
-        namespace: default
+        namespace: tekton-pipelines
       spec:
         pipelineRef:
           name: pytest-pipeline

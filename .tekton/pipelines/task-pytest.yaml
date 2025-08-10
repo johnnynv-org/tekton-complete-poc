@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: pytest-task
-  namespace: default
+  namespace: tekton-pipelines
 spec:
   description: Run pytest tests for the project
   params:

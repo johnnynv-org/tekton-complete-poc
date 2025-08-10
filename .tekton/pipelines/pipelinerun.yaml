@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
   name: pytest-pipeline-run
-  namespace: default
+  namespace: tekton-pipelines
 spec:
   pipelineRef:
     name: pytest-pipeline
