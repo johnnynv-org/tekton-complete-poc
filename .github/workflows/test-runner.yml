@@ -7,7 +7,8 @@ on:
 
 jobs:
   test:
-    runs-on: swqa-tekton-poc-runner-a
+    # runs-on: swqa-tekton-poc-runner-a
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     
     steps:
