@@ -19,3 +19,12 @@ jobs:
         echo "Current user: $(whoami)"
         echo "Current directory: $(pwd)"
         echo "Test completed successfully!"
+        
+    - name: Test kubectl
+      timeout-minutes: 1
+      run: |
+        echo "Testing kubectl connection..."
+        timeout 30 kubectl version --client
+        timeout 30 kubectl config current-context
+        timeout 30 kubectl get nodes
+        echo "kubectl test completed!"
