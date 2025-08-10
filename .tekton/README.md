@@ -6,15 +6,17 @@ This directory contains Tekton pipeline configurations organized into two layers
 
 ```
 .tekton/
-├── infrastructure/           # Infrastructure Layer (One-time deployment)
-│   ├── rbac.yaml            # ServiceAccount, Role, RoleBinding
-│   ├── eventlistener.yaml   # EventListener service
-│   ├── triggerbinding.yaml  # Extract parameters from webhooks
-│   └── triggertemplate.yaml # Template for creating PipelineRuns
-└── pipelines/               # Business Logic Layer (Version-controlled deployment)
-    ├── task-pytest.yaml    # Task definition for pytest execution
-    ├── pipeline.yaml       # Pipeline definition
-    └── pipelinerun.yaml    # Example PipelineRun (for manual testing)
+├── infrastructure/                    # Infrastructure Layer (One-time deployment)
+│   ├── namespace-security-policy.yaml # Namespace and Pod Security Policy configuration
+│   ├── rbac.yaml                      # ServiceAccount, Role, RoleBinding  
+│   ├── eventlistener.yaml             # EventListener service
+│   ├── eventlistener-nodeport.yaml    # NodePort service (network connectivity)
+│   ├── triggerbinding.yaml            # Extract parameters from webhooks
+│   └── triggertemplate.yaml           # Template for creating PipelineRuns
+└── pipelines/                         # Business Logic Layer (Version-controlled deployment)
+    ├── task-pytest.yaml              # Task definition with security contexts
+    ├── pipeline.yaml                 # Pipeline definition
+    └── pipelinerun.yaml              # Example PipelineRun (for manual testing)
 ```
 
 ## Deployment Strategy

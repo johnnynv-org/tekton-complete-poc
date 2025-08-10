@@ -265,18 +265,29 @@ This project uses layered configuration management:
 Execute in k8s environment:
 
 ```bash
-# Apply RBAC configuration
+# 1. First configure Namespace security policy (Important!)
+kubectl apply -f .tekton/infrastructure/namespace-security-policy.yaml
+
+# 2. Apply RBAC configuration
 kubectl apply -f .tekton/infrastructure/rbac.yaml
 
-# Apply TriggerBinding
+# 3. Apply TriggerBinding
 kubectl apply -f .tekton/infrastructure/triggerbinding.yaml
 
-# Apply TriggerTemplate  
+# 4. Apply TriggerTemplate  
 kubectl apply -f .tekton/infrastructure/triggertemplate.yaml
 
-# Apply EventListener
+# 5. Apply EventListener
 kubectl apply -f .tekton/infrastructure/eventlistener.yaml
+
+# 6. Apply NodePort Service (resolve network connectivity)
+kubectl apply -f .tekton/infrastructure/eventlistener-nodeport.yaml
 ```
+
+**Important Security Notes:**
+- Tekton Pipelines requires privileged Pod Security Policy to function properly
+- This is due to architectural requirements of Tekton internal containers (prepare, place-scripts, etc.)
+- User-defined Pipeline steps still use restricted security contexts
 
 ### 5.3 Verify Infrastructure Deployment
 
