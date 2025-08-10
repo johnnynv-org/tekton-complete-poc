@@ -102,14 +102,14 @@ spec:
         echo "Test execution completed. Check reports/ directory for details." >> reports/summary.txt
         ls -la reports/ >> reports/summary.txt
     
-    - name: serve-test-reports
-      image: python:3.9-slim
+    - name: prepare-test-reports
+      image: alpine:latest
       workingDir: $(workspaces.source.path)
       script: |
-        #!/bin/bash
+        #!/bin/sh
         set -e
         
-        echo "🌐 Starting Test Reports Web Server..."
+        echo "📊 Preparing Test Reports Summary..."
         
         # Create a simple index page with links to all reports
         cat > reports/index.html << 'EOF'
@@ -168,17 +168,26 @@ spec:
                         <li>📱 <a href="https://github.com/johnnynv/tekton-poc">GitHub Repository</a></li>
                     </ul>
                 </div>
+                
+                <div class="section">
+                    <h3>ℹ️ Access Instructions</h3>
+                    <p><strong>Note:</strong> To view these reports, you'll need to:</p>
+                    <ol>
+                        <li>Copy reports from the PipelineRun workspace</li>
+                        <li>Or check the Tekton logs for detailed results</li>
+                        <li>Or use <code>kubectl port-forward</code> to access the workspace</li>
+                    </ol>
+                </div>
             </div>
         </body>
         </html>
         EOF
         
-        # Start HTTP server on port 8080
-        echo "📡 Starting HTTP server on port 8080..."
-        echo "🔗 Access reports at: http://localhost:8080"
-        echo "📋 Available reports:"
+        echo "✅ Test Reports prepared successfully!"
+        echo "📋 Available report files:"
         ls -la reports/
-        
-        cd reports
-        # Keep server running for 10 minutes to allow inspection
-        timeout 600 python -m http.server 8080 --bind 0.0.0.0 || echo "⏰ Server timeout after 10 minutes"
+        echo ""
+        echo "📊 Report Summary:"
+        if [ -f reports/summary.txt ]; then
+          cat reports/summary.txt
+        fi
