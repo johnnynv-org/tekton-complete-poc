@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: swqa-gh-runner-poc
+    runs-on: swqa-tekton-poc-runner-a
     timeout-minutes: 2
     
     steps:
