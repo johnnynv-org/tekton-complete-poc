@@ -1,14 +1,14 @@
 name: Test Runner Connection
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch:
   push:
     branches: [ main ]
 
 jobs:
   test:
     runs-on: swqa-gh-runner-poc
-    timeout-minutes: 2  # 整个job超时2分钟
+    timeout-minutes: 2
     
     steps:
     - name: Simple test
