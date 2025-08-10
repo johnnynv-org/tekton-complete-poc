@@ -15,16 +15,64 @@ spec:
       labels:
         app: test-reports-server
     spec:
+      # Set fsGroup to ensure consistent permissions
+      securityContext:
+        fsGroup: 65532  # Match Tekton Task's runAsUser
+        fsGroupChangePolicy: "OnRootMismatch"
+      
+      # Init container to set up proper permissions
+      initContainers:
+      - name: setup-permissions
+        image: busybox:latest
+        securityContext:
+          runAsUser: 0  # Run as root to set permissions
+          runAsNonRoot: false
+        command: 
+        - /bin/sh
+        - -c
+        - |
+          echo "🔧 Setting up shared volume permissions..."
+          
+          # Ensure the reports directory exists
+          mkdir -p /shared-reports
+          
+          # Set ownership to nobody:nobody (65532:65532) to match Tekton Tasks
+          chown -R 65532:65532 /shared-reports
+          
+          # Set proper permissions: rwxrwxr-x
+          chmod -R 775 /shared-reports
+          
+          echo "✅ Permissions configured:"
+          ls -la /shared-reports/
+          echo "📊 Directory ownership and permissions ready for Tekton Tasks"
+        volumeMounts:
+        - name: reports-volume
+          mountPath: /shared-reports
+      
       containers:
       - name: nginx
         image: nginx:alpine
         ports:
-        - containerPort: 80
+        - containerPort: 8080
+        # Run nginx as nobody user to match volume permissions
+        securityContext:
+          runAsUser: 65532
+          runAsGroup: 65532
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+            add: ["NET_BIND_SERVICE"]  # Allow binding to port 80
+          seccompProfile:
+            type: RuntimeDefault
+        # Use custom nginx.conf instead of default entrypoint
+        command: ["nginx"]
+        args: ["-c", "/etc/nginx/custom/nginx.conf", "-g", "daemon off;"]
         volumeMounts:
         - name: reports-volume
           mountPath: /usr/share/nginx/html
         - name: nginx-config
-          mountPath: /etc/nginx/conf.d
+          mountPath: /etc/nginx/custom
       volumes:
       - name: reports-volume
         persistentVolumeClaim:
@@ -51,29 +99,59 @@ metadata:
   name: nginx-reports-config
   namespace: tekton-pipelines
 data:
-  default.conf: |
-    server {
-        listen 80;
-        server_name _;
-        root /usr/share/nginx/html;
-        index index.html;
+  nginx.conf: |
+    # Nginx config for running as non-root user (65532)
+    worker_processes 1;
+    error_log /dev/stderr;
+    pid /tmp/nginx.pid;
+    
+    events {
+        worker_connections 1024;
+    }
+    
+    http {
+        # Temporary directories for non-root user
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp_path;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
         
-        # Enable directory listing for downloads
-        location / {
-            try_files $uri $uri/ =404;
-            autoindex on;
-            autoindex_exact_size off;
-            autoindex_localtime on;
-        }
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
         
-        # Set proper MIME types
-        location ~* \.(html|css|js)$ {
-            expires 1h;
-            add_header Cache-Control "public, immutable";
-        }
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
         
-        location ~* \.(xml|log|txt)$ {
-            add_header Content-Disposition "attachment";
+        access_log /dev/stdout main;
+        
+        sendfile on;
+        keepalive_timeout 65;
+        
+        server {
+            listen 8080;
+            server_name _;
+            root /usr/share/nginx/html;
+            index index.html;
+            
+            # Enable directory listing for downloads
+            location / {
+                try_files $uri $uri/ =404;
+                autoindex on;
+                autoindex_exact_size off;
+                autoindex_localtime on;
+            }
+            
+            # Set proper MIME types
+            location ~* \.(html|css|js)$ {
+                expires 1h;
+                add_header Cache-Control "public, immutable";
+            }
+            
+            location ~* \.(xml|log|txt)$ {
+                add_header Content-Disposition "attachment";
+            }
         }
     }
 ---
@@ -88,7 +166,7 @@ spec:
   type: ClusterIP
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 8080
       name: http
   selector:
     app: test-reports-server
