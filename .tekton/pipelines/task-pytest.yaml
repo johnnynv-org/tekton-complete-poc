@@ -33,7 +33,12 @@ spec:
       script: |
         #!/bin/sh
         set -e
-        echo "Cloning repository $(params.git-url) at revision $(params.git-revision)"
+        echo "Preparing workspace and cloning repository $(params.git-url) at revision $(params.git-revision)"
+        
+        # Clean workspace directory first
+        echo "Cleaning workspace directory..."
+        rm -rf ./* .git .gitignore 2>/dev/null || true
+        ls -la
         
         # Disable Git ownership checks for this workspace
         export GIT_CONFIG_GLOBAL=""
