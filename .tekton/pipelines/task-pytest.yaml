@@ -35,19 +35,27 @@ spec:
         set -e
         echo "Preparing workspace and cloning repository $(params.git-url) at revision $(params.git-revision)"
         
-        # Clean workspace directory completely
-        echo "Cleaning workspace directory..."
-        cd /workspace/source
-        find . -mindepth 1 -delete 2>/dev/null || true
+        # Create a dedicated project directory to avoid conflicts with shared PVC
+        PROJECT_DIR="tekton-complete-poc"
+        echo "Creating dedicated project directory: $PROJECT_DIR"
+        
+        # Clean and create project directory
+        rm -rf "$PROJECT_DIR" 2>/dev/null || true
+        mkdir -p "$PROJECT_DIR"
+        cd "$PROJECT_DIR"
+        
+        echo "Working in project directory: $(pwd)"
         ls -la
         
         # Create a temporary directory for git config to avoid cross-device link issues
-        export HOME=/tmp/git-home
+        export HOME=/tmp/git-home-$$
         mkdir -p $HOME
         
         # Set git config to avoid ownership issues  
         git config --global --add safe.directory '*'
         git config --global init.defaultBranch main
+        git config --global user.email "tekton@example.com"
+        git config --global user.name "Tekton CI"
         
         # Clone the repository
         echo "Cloning repository..."
@@ -67,16 +75,18 @@ spec:
     
     - name: run-python-tests
       image: python:3.9-slim
-      workingDir: $(workspaces.source.path)
+      workingDir: $(workspaces.source.path)/tekton-complete-poc
       script: |
         #!/bin/bash
         set -e
+        
+        echo "Running Python tests in project directory: $(pwd)"
         
         # Install dependencies once (with proper permissions for restricted user)
         echo "Installing Python dependencies..."
         
         # Set up a writable pip target directory
-        export PYTHONUSERBASE=/workspace/source/.local
+        export PYTHONUSERBASE=/workspace/source/tekton-complete-poc/.local
         mkdir -p $PYTHONUSERBASE
         export PATH=$PYTHONUSERBASE/bin:$PATH
         
@@ -121,7 +131,7 @@ spec:
     
     - name: prepare-test-reports
       image: busybox:latest
-      workingDir: $(workspaces.source.path)
+      workingDir: $(workspaces.source.path)/tekton-complete-poc
       script: |
         #!/bin/sh
         set -e
@@ -213,7 +223,7 @@ spec:
     
     - name: upload-to-web-server
       image: busybox:latest
-      workingDir: $(workspaces.source.path)
+      workingDir: $(workspaces.source.path)/tekton-complete-poc
       script: |
         #!/bin/sh
         set -e
