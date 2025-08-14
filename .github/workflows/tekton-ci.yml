@@ -8,7 +8,7 @@ on:
 
 jobs:
   trigger-tekton:
-    runs-on: swqa-tekton-poc-runner
+    runs-on: swqa-tekton-webhook-runner
     
     steps:
     - name: Checkout code
