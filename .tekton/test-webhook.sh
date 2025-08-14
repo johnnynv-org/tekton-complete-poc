@@ -66,7 +66,7 @@ if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
   echo "🌐 Check these links:"
   echo "   📊 Tekton Dashboard: http://tekton.10.34.2.129.nip.io"
   echo "   🎯 PipelineRun: http://tekton.10.34.2.129.nip.io/#/namespaces/tekton-pipelines/pipelineruns/pytest-run-$SHORT_SHA"
-  echo "   📈 Artifacts: http://artifacts.10.34.2.129.nip.io/pytest-run-$SHORT_SHA/"
+  echo "   📈 Artifacts: http://results.10.34.2.129.nip.io/pytest-run-$SHORT_SHA/"
   echo ""
   echo "⏱️  Wait ~30 seconds then check for the new PipelineRun:"
   echo "   kubectl get pipelinerun pytest-run-$SHORT_SHA -n tekton-pipelines"
