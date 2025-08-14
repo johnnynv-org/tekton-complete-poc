@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Deploying updated Tekton configurations..."
+echo "🚀 Deploying Tekton CI/CD Pipeline..."
 echo ""
 
 # Set namespace
@@ -24,15 +24,9 @@ echo "4️⃣  Applying Ingress configuration..."
 kubectl apply -f .tekton/infrastructure/ingress.yaml
 
 echo ""
-echo "5️⃣  Optionally applying NodePort service (if needed for backup access)..."
-echo "   Note: NodePort 30081 is configured (30080 is used by gpu-artifacts-web-service)"
-echo "   Uncomment the next line if you want NodePort access:"
-echo "   # kubectl apply -f .tekton/infrastructure/eventlistener-nodeport.yaml"
+echo "5️⃣  Verifying deployments..."
 
 echo ""
-echo "6️⃣  Verifying deployments..."
-echo ""
-
 echo "📋 EventListener status:"
 kubectl get eventlistener github-webhook-production -n $NAMESPACE
 
@@ -61,16 +55,7 @@ echo "   Artifacts: http://artifacts.10.34.2.129.nip.io"
 echo ""
 echo "✅ Deployment completed!"
 echo ""
-echo "🧪 To test the webhook:"
-echo "curl -X POST http://webhook.10.34.2.129.nip.io \\"
-echo "  -H 'Content-Type: application/json' \\"
-echo "  -H 'X-GitHub-Event: push' \\"
-echo "  -d '{"
-echo "    \"repository\": {"
-echo "      \"clone_url\": \"$(git remote get-url origin)\","
-echo "      \"name\": \"$(basename \$(git remote get-url origin) .git)\""
-echo "    },"
-echo "    \"after\": \"$(git rev-parse HEAD)\","
-echo "    \"short_sha\": \"$(git rev-parse --short HEAD)\","
-echo "    \"ref\": \"refs/heads/$(git branch --show-current)\""
-echo "  }'"
+echo "🧪 To test the pipeline:"
+echo "   ./.tekton/test-webhook.sh"
+echo ""
+echo "📚 Or push code to trigger GitHub Actions"

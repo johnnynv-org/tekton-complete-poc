@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🧪 Testing Tekton Webhook with dynamic repository information..."
+echo "🧪 Testing Tekton Pipeline Webhook..."
 echo ""
 
 # Get current git information dynamically
