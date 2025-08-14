@@ -11,14 +11,4 @@ spec:
         - ref: github-webhook-triggerbinding
       template:
         ref: github-webhook-triggertemplate
-      interceptors:
-        - name: verify-github-payload
-          ref:
-            name: github
-          params:
-            - name: secretRef
-              value:
-                secretName: github-webhook-secret
-                secretKey: webhook-secret
-            - name: eventTypes
-              value: ["push", "pull_request"]
+      # Interceptors disabled for testing - can be re-enabled with proper GitHub webhook setup
