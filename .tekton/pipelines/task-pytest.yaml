@@ -35,23 +35,35 @@ spec:
         set -e
         echo "Preparing workspace and cloning repository $(params.git-url) at revision $(params.git-revision)"
         
-        # Clean workspace directory first
+        # Clean workspace directory completely
         echo "Cleaning workspace directory..."
-        rm -rf ./* .git .gitignore 2>/dev/null || true
+        cd /workspace/source
+        find . -mindepth 1 -delete 2>/dev/null || true
         ls -la
         
-        # Disable Git ownership checks for this workspace
-        export GIT_CONFIG_GLOBAL=""
-        git config --global --add safe.directory '*' || true
+        # Create a temporary directory for git config to avoid cross-device link issues
+        export HOME=/tmp/git-home
+        mkdir -p $HOME
         
-        # Alternative: use environment variable to disable ownership checks
-        export GIT_CEILING_DIRECTORIES=""
+        # Set git config to avoid ownership issues  
+        git config --global --add safe.directory '*'
+        git config --global init.defaultBranch main
         
-        # Clone and checkout with ownership checks disabled
-        git -c safe.directory='*' clone $(params.git-url) .
-        git -c safe.directory='*' checkout $(params.git-revision)
+        # Clone the repository
+        echo "Cloning repository..."
+        git clone $(params.git-url) .
+        
+        # Checkout specific revision if not main
+        if [ "$(params.git-revision)" != "main" ]; then
+          echo "Checking out revision $(params.git-revision)..."
+          git checkout $(params.git-revision)
+        fi
+        
         echo "Repository cloned successfully"
+        echo "Current directory contents:"
         ls -la
+        echo "Git status:"
+        git status --short || true
     
     - name: run-python-tests
       image: python:3.9-slim
