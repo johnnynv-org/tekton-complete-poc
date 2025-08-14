@@ -39,10 +39,5 @@ spec:
             value: $(tt.params.git-short-sha)
         workspaces:
           - name: shared-data
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 1Gi
+            persistentVolumeClaim:
+              claimName: source-code-workspace
