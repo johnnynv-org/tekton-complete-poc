@@ -1,7 +1,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  name: pytest-trigger-template
+  name: github-webhook-triggertemplate
   namespace: tekton-pipelines
 spec:
   params:
@@ -13,6 +13,8 @@ spec:
       description: Short SHA for naming
     - name: repo-name
       description: Repository name
+    - name: ref
+      description: Git reference
   resourcetemplates:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun

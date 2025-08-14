@@ -9,15 +9,12 @@ spec:
     - name: git-url
       type: string
       description: Git repository URL
-      default: "https://github.com/johnnynv/tekton-poc.git"
     - name: git-revision
       type: string
       description: Git revision to checkout
-      default: main
     - name: git-short-sha
       type: string
       description: Short SHA for naming
-      default: "latest"
   workspaces:
     - name: shared-data
       description: Shared workspace for pipeline tasks
@@ -64,16 +61,16 @@ spec:
               echo "🔗 ===== KEY LINKS ===== 🔗"
               echo ""
               echo "📊 Test Reports Web UI:"
-              echo "   🌐 Main Dashboard: http://tekton.10.117.3.193.nip.io/artifacts/"
-              echo "   🎯 This Pipeline: http://tekton.10.117.3.193.nip.io/artifacts/pytest-run-$SHORT_SHA/"
+              echo "   🌐 Main Dashboard: http://artifacts.10.34.2.129.nip.io/"
+              echo "   🎯 This Pipeline: http://artifacts.10.34.2.129.nip.io/pytest-run-$SHORT_SHA/"
               echo "   📋 View HTML reports, coverage analysis, download artifacts"
               echo ""
               echo "📈 Tekton Dashboard:"
-              echo "   🏠 Main Dashboard: http://tekton.10.117.3.193.nip.io"
-              echo "   🎯 This PipelineRun: http://tekton.10.117.3.193.nip.io/#/namespaces/tekton-pipelines/pipelineruns/pytest-run-$SHORT_SHA"
+              echo "   🏠 Main Dashboard: http://tekton.10.34.2.129.nip.io"
+              echo "   🎯 This PipelineRun: http://tekton.10.34.2.129.nip.io/#/namespaces/tekton-pipelines/pipelineruns/pytest-run-$SHORT_SHA"
               echo ""
               echo "📱 GitHub Repository:"
-              echo "   🔗 https://github.com/johnnynv/tekton-poc/commit/$FULL_SHA"
+              echo "   🔗 https://github.com/johnnynv-org/tekton-complete-poc/commit/$FULL_SHA"
               echo ""
               
               echo "📋 Available Reports:"

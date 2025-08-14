@@ -43,12 +43,10 @@ jobs:
     - name: Trigger Tekton Pipeline execution
       timeout-minutes: 5
       run: |
-        # Use NodePort for external access (Runner cannot reach ClusterIP network)
-        echo "🔍 Getting cluster node IP..."
-        NODE_IP=$(timeout 30 kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-        EVENTLISTENER_URL="http://$NODE_IP:30080"
+        # Use Ingress for external access
+        EVENTLISTENER_URL="http://webhook.10.34.2.129.nip.io"
         
-        echo "🔍 Using NodePort access: $EVENTLISTENER_URL"
+        echo "🔍 Using Ingress access: $EVENTLISTENER_URL"
         
         # Calculate short SHA and PipelineRun name beforehand
         SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
@@ -86,9 +84,9 @@ jobs:
         
             if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
               echo "✅ Tekton Pipeline triggered successfully!"
-              echo "📊 Dashboard: http://tekton.10.117.3.193.nip.io"
+              echo "📊 Dashboard: http://tekton.10.34.2.129.nip.io"
               echo "🎯 PipelineRun: $PIPELINERUN_NAME"
-              echo "🔗 Direct Link: http://tekton.10.117.3.193.nip.io/#/namespaces/tekton-pipelines/pipelineruns/$PIPELINERUN_NAME"
+              echo "🔗 Direct Link: http://tekton.10.34.2.129.nip.io/#/namespaces/tekton-pipelines/pipelineruns/$PIPELINERUN_NAME"
               echo "⏱️  Check dashboard in ~30 seconds for execution status"
         else
           echo "❌ Failed to trigger Tekton Pipeline (HTTP $HTTP_CODE)"

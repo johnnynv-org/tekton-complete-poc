@@ -1,18 +1,18 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: el-github-listener-nodeport
+  name: el-github-webhook-production-nodeport
   namespace: tekton-pipelines
   labels:
     app: eventlistener-nodeport
 spec:
   type: NodePort
   selector:
-    eventlistener: github-listener
+    eventlistener: github-webhook-production
   ports:
     - port: 8080
       targetPort: 8080
-      nodePort: 30080
+      nodePort: 30081
       protocol: TCP
       name: http-listener
 

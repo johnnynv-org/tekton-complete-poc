@@ -1,13 +1,24 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
-  name: github-listener
+  name: github-webhook-production
   namespace: tekton-pipelines
 spec:
   serviceAccountName: tekton-triggers-sa
   triggers:
-    - name: github-push-trigger
+    - name: github-production-trigger
       bindings:
-        - ref: github-push-binding
+        - ref: github-webhook-triggerbinding
       template:
-        ref: pytest-trigger-template
+        ref: github-webhook-triggertemplate
+      interceptors:
+        - name: verify-github-payload
+          ref:
+            name: github
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: webhook-secret
+            - name: eventTypes
+              value: ["push", "pull_request"]

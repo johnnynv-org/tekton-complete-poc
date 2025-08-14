@@ -1,7 +1,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
-  name: github-push-binding
+  name: github-webhook-triggerbinding
   namespace: tekton-pipelines
 spec:
   params:
@@ -13,3 +13,5 @@ spec:
       value: $(body.short_sha)
     - name: repo-name
       value: $(body.repository.name)
+    - name: ref
+      value: $(body.ref)
