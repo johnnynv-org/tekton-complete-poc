@@ -24,7 +24,13 @@ echo "4️⃣  Applying Ingress configuration..."
 kubectl apply -f .tekton/infrastructure/ingress.yaml
 
 echo ""
-echo "5️⃣  Verifying deployments..."
+echo "5️⃣  Deploying Test Reports infrastructure..."
+kubectl apply -f .tekton/infrastructure/test-reports-pv.yaml
+kubectl apply -f .tekton/infrastructure/test-reports-deployment.yaml
+kubectl apply -f .tekton/infrastructure/test-reports-service.yaml
+
+echo ""
+echo "6️⃣  Verifying deployments..."
 
 echo ""
 echo "📋 EventListener status:"
@@ -47,10 +53,16 @@ echo "📋 Ingress status:"
 kubectl get ingress github-webhook-ingress -n $NAMESPACE
 
 echo ""
+echo "📋 Test Reports infrastructure:"
+kubectl get pvc test-reports-pvc -n $NAMESPACE
+kubectl get deployment test-reports-server -n $NAMESPACE
+kubectl get service test-reports-service -n $NAMESPACE
+
+echo ""
 echo "🌐 Access points:"
 echo "   Webhook URL: http://webhook.10.34.2.129.nip.io"
 echo "   Dashboard: http://tekton.10.34.2.129.nip.io"
-echo "   Artifacts: http://artifacts.10.34.2.129.nip.io"
+echo "   Test Results: http://results.10.34.2.129.nip.io"
 
 echo ""
 echo "✅ Deployment completed!"
